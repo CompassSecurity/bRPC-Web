@@ -225,12 +225,12 @@ public class GrpcWebRequestResponse {
 
                 String trailerString = new String(trailer);
                 for (String header : trailerString.split("\r\n")) {
-
-                    String[] tmp = header.split(":");
+                    String[] tmp = header.split(":", 2);
+                    if ( tmp.length < 2 ) continue;  // skip malformed / empty lines
                     trailingHeaders.addHeader(new HttpHeader(tmp[0], tmp[1]));
-
-                    cursor += length;
                 }
+
+                cursor += length;
             }
         }
     }
