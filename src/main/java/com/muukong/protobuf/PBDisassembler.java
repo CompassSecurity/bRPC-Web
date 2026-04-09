@@ -3,6 +3,11 @@ package com.muukong.protobuf;
 import com.muukong.util.Util;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A disassembler for protobuf messages that on input a protobuf message attempts to disassemble it
@@ -215,35 +220,46 @@ public class PBDisassembler {
 
         final int length = disassembleVarInt().toInt();   // We can (rather) safely assume that the length fits into an int
 
-        int printableTokens = 0;
-        for ( int i = 0; i < length; ++i ) {
-            byte token = input[cursor + i];
-            if ( Util.isPrintable(token) )
-                ++printableTokens;
+        // An empty LEN field is unambiguously an empty string — skip all heuristics.
+        if ( length == 0 ) {
+            return new PBString("");
         }
 
         /*
          The following heuristic is employed:
-         (1) If all characters are printable, disassemble it as a string and exit.
+         (1) If all characters are printable UTF-8 characters, disassemble it as a string and exit.
          (2) Otherwise, attempt to parse bytes as sub-message. Exit on success.
          (3) Otherwise, attempt to parse message as packed repeated fields. Exit on success.
          (4) Otherwise, consume `length` bytes (this should always succeed) and continue
         */
 
-        final boolean isString = printableTokens == length; // TODO: can this heuristic be improved?
-
-        // Case (1)
-        if ( isString ) {
-
-            StringBuilder sb = new StringBuilder();
-            for ( int i = 0; i < length; ++i ) {
-                byte b = input[cursor + i];
-                sb.append((char) b);
+        // Case (1): try to decode as UTF-8 and verify all characters are printable
+        boolean isString = false;
+        String stringValue = null;
+        {
+            CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                                                     .onMalformedInput(CodingErrorAction.REPORT)
+                                                     .onUnmappableCharacter(CodingErrorAction.REPORT);
+            try {
+                stringValue = decoder.decode(ByteBuffer.wrap(input, cursor, length)).toString();
+                // Reject strings that contain non-printable control characters
+                // (allow common whitespace: tab=0x09, LF=0x0A, CR=0x0D)
+                isString = true;
+                for ( int i = 0; i < stringValue.length(); ++i ) {
+                    char c = stringValue.charAt(i);
+                    if ( c < 0x09 || (c > 0x0D && c < 0x20) || c == 0x7F ) {
+                        isString = false;
+                        break;
+                    }
+                }
+            } catch ( CharacterCodingException e ) {
+                isString = false;
             }
+        }
 
+        if ( isString ) {
             cursor += length;
-
-            return new PBString( sb.toString() );
+            return new PBString( stringValue );
         }
 
         // Case (2)

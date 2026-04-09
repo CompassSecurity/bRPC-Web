@@ -3,6 +3,7 @@ package com.muukong.protobuf;
 import com.muukong.parsing.IParseable;
 import com.muukong.util.Util;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,13 +35,7 @@ public class PBString implements ISerializable, IParseable {
 
     @Override
     public byte[] serializeValue() {
-
-        byte[] valueBytes = new byte[value.length()];
-
-        for ( int i = 0; i < value.length(); ++i )
-            valueBytes[i] = (byte) value.charAt(i);
-
-        return valueBytes;
+        return value.getBytes(StandardCharsets.UTF_8);
     }
 
     @Override
@@ -53,12 +48,12 @@ public class PBString implements ISerializable, IParseable {
         byte[] tagBytes = new PBVarInt(tag).serializeValue();
         result.addAll( Util.convertToList(tagBytes) );
 
-        // Append string length encoded in VARINT format (without prefix)
-        byte[] lengthBytes = new PBVarInt(value.length()).serializeValue();
+        // Append string byte length encoded in VARINT format (use byte count, not char count)
+        byte[] stringBytes = serializeValue();
+        byte[] lengthBytes = new PBVarInt(stringBytes.length).serializeValue();
         result.addAll(Util.convertToList(lengthBytes));
 
         // Append string value itself
-        byte[] stringBytes = serializeValue();
         result.addAll(Util.convertToList(stringBytes));
 
         return Util.convertToArray(result);

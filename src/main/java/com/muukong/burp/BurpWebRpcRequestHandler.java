@@ -84,8 +84,7 @@ public class BurpWebRpcRequestHandler implements ExtensionProvidedHttpRequestEdi
             grpcWebRequestResponse = GrpcWebRequestResponse.fromGrpcWebProto(body.getBytes());
         }
 
-        String output = grpcWebRequestResponse.prettyPrint();
-        requestEditor.setContents(ByteArray.byteArray(output.getBytes()));
+        requestEditor.setContents(ByteArray.byteArray(grpcWebRequestResponse.prettyPrint()));
     }
 
     @Override
