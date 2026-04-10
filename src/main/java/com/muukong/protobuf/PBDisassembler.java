@@ -243,13 +243,21 @@ public class PBDisassembler {
             try {
                 stringValue = decoder.decode(ByteBuffer.wrap(input, cursor, length)).toString();
                 // Reject strings that contain non-printable control characters
-                // (allow common whitespace: tab=0x09, LF=0x0A, CR=0x0D)
+                // (allow common whitespace: tab=0x09, LF=0x0A, CR=0x0D — but not at the edges)
                 isString = true;
                 for ( int i = 0; i < stringValue.length(); ++i ) {
                     char c = stringValue.charAt(i);
                     if ( c < 0x09 || (c > 0x0D && c < 0x20) || c == 0x7F ) {
                         isString = false;
                         break;
+                    }
+                }
+                if ( isString && !stringValue.isEmpty() ) {
+                    char first = stringValue.charAt(0);
+                    char last  = stringValue.charAt(stringValue.length() - 1);
+                    if ( first == '\t' || first == '\n' || first == '\r' ||
+                         last  == '\t' || last  == '\n' || last  == '\r' ) {
+                        isString = false;
                     }
                 }
             } catch ( CharacterCodingException e ) {
