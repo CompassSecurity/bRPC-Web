@@ -57,7 +57,7 @@ public class PBMessage implements ISerializable, IParseable {
     public byte[] serializeValue() {
 
         if ( fields.size() == 0 ) { // Empty message
-            return new byte[] { 0, 0, 0, 0, 0 };
+            return new byte[0];
         }
 
         List<Byte> result = new ArrayList<>();

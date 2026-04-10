@@ -85,6 +85,23 @@ class PBDisassemblerTest {
         assertEquals("", pp(new byte[0]));
     }
 
+    @Test
+    void emptyMessage_serializesToZeroBytes() {
+        PBMessage empty = new PBDisassembler(new byte[0]).disassemble();
+        assertArrayEquals(new byte[0], empty.serializeValue());
+    }
+
+    @Test
+    void emptySubMessage_roundTrip() {
+        // A LEN field whose payload is an empty protobuf message (0 bytes).
+        // Before the fix, PBMessage.serializeValue() returned 5 zero bytes for
+        // empty messages, so this round-trip would produce a 5-byte payload instead.
+        byte[] input = lenField(1, new byte[0]);   // field 1, length 0 → empty string {""}
+        // The disassembler treats a zero-length LEN as an empty string.
+        // Serialising that PBString back must reproduce the original 2-byte encoding.
+        assertArrayEquals(input, new PBDisassembler(input).disassemble().serializeValue());
+    }
+
     // -----------------------------------------------------------------------
     // VARINT fields
     // -----------------------------------------------------------------------
