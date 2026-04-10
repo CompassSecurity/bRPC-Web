@@ -42,7 +42,7 @@ public class PBNonVarInt64 implements ISerializable, IParseable {
             result += (tmp << (8 * i));
         }
 
-        return String.format("%s%di64", indent, result);
+        return String.format("%di64", result);
     }
 
     @Override
