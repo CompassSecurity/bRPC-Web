@@ -49,7 +49,7 @@ public class BurpWebRpcResponseHandler implements ExtensionProvidedHttpResponseE
         if ( !isModified() )
             return response;
 
-        final String data = responseEditor.getContents().toString();
+        final String data = new String(responseEditor.getContents().getBytes(), java.nio.charset.StandardCharsets.UTF_8);
 
         try {
             ProtoParser pp = new ProtoParser(data);
@@ -85,7 +85,7 @@ public class BurpWebRpcResponseHandler implements ExtensionProvidedHttpResponseE
             grpcWebRequestResponse = GrpcWebRequestResponse.fromGrpcWebProto(response.body().getBytes());
         }
 
-        responseEditor.setContents(ByteArray.byteArray(grpcWebRequestResponse.prettyPrint()));
+        responseEditor.setContents(ByteArray.byteArray(grpcWebRequestResponse.prettyPrint().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
     }
 
     @Override

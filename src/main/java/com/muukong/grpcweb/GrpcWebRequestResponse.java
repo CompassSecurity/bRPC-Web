@@ -127,7 +127,7 @@ public class GrpcWebRequestResponse {
                     right = grpcWebTextBody.length;
                 } else { // trailing header
 
-                    String headers = new String(grpcWebProto);
+                    String headers = new String(grpcWebProto, java.nio.charset.StandardCharsets.UTF_8);
                     headers = headers.substring(5, headers.length());
 
 
@@ -223,7 +223,7 @@ public class GrpcWebRequestResponse {
                 byte[] trailer = new byte[length];
                 System.arraycopy(grpcMessage, cursor, trailer, 0, length);
 
-                String trailerString = new String(trailer);
+                String trailerString = new String(trailer, java.nio.charset.StandardCharsets.UTF_8);
                 for (String header : trailerString.split("\r\n")) {
                     String[] tmp = header.split(":", 2);
                     if ( tmp.length < 2 ) continue;  // skip malformed / empty lines
