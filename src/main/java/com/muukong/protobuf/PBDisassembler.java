@@ -147,7 +147,7 @@ public class PBDisassembler {
             if ( isRemainingMessageParseable() ) {
                 return prf;
             } else {
-                cursor = cursorBackup;  // Restore state (TODO: is this necessary?)
+                cursor = cursorBackup;
                 return null;
             }
         } catch ( Exception ex ) {
@@ -181,7 +181,7 @@ public class PBDisassembler {
             if ( isRemainingMessageParseable() ) {
                 return new PBSubMessage(message);
             } else {
-                cursor = cursorBackup;  // Restore state (TODO: is this necessary?)
+                cursor = cursorBackup;
                 return null;
             }
         } catch ( Exception ex ) {
@@ -283,28 +283,86 @@ public class PBDisassembler {
      * but render the remainder of the message invalid (i.e. it cannot be disassembled). This method checks if
      * the remaining message can be parsed without errors.
      *
+     * Rather than recursively re-parsing (which causes exponential blowup on deeply nested messages), this
+     * performs a single linear pass that verifies tag/length consistency without descending into sub-messages.
+     *
      * @return true if remaining message can be disassembled, false otherwise
      */
     private boolean isRemainingMessageParseable() {
 
-        final int cursorBackup = cursor;
+        int offset = cursor;
 
-        // Copy remaining message to `bytesLeft`
-        byte[] bytesLeft = new byte[input.length - cursor];
-        System.arraycopy(input, cursor, bytesLeft, 0, input.length - cursor);
-
-        // Initialize new disassembler instance
-        PBDisassembler p = new PBDisassembler(bytesLeft);
-
-        // Attempt to disassemble remaining message
         try {
-            PBMessage m = p.disassemble();
-        } catch ( Exception ex ) { // Fail
-            cursor = cursorBackup;
+            // Walk every field in the remaining bytes
+            while ( offset < input.length ) {
+
+                long tag = 0;
+                int shift = 0;
+                while ( true ) {
+                    if ( offset >= input.length ) return false;
+                    byte b = input[offset++];
+                    tag |= (long)(b & 0x7F) << shift;
+                    shift += 7;
+                    if ( (b & 0x80) == 0 ) break;                 // MSB clear → last byte of varint
+                    if ( shift >= 64 ) return false;              // varint too long to be valid
+                }
+
+                int wireType = (int)(tag & 0x7);
+
+                switch ( wireType ) {
+
+                    case PBWireTypes.VARINT:
+                        // Value is a varint — skip it by consuming bytes until the MSB is clear.
+                        while ( true ) {
+                            if ( offset >= input.length ) return false;
+                            byte b = input[offset++];
+                            if ( (b & 0x80) == 0 ) break;
+                        }
+                        break;
+
+                    case PBWireTypes.I64:
+                        // Value is always exactly 8 bytes (fixed64, sfixed64, double).
+                        offset += 8;
+                        break;
+
+                    case PBWireTypes.LEN:
+                        // Value is a length-prefixed byte sequence (string, bytes, sub-message, …).
+                        // Read the length varint, then skip that many bytes.
+                        long length = 0;
+                        shift = 0;
+                        while ( true ) {
+                            if ( offset >= input.length ) return false;
+                            byte b = input[offset++];
+                            length |= (long)(b & 0x7F) << shift;
+                            shift += 7;
+                            if ( (b & 0x80) == 0 ) break;
+                            if ( shift >= 64 ) return false;
+                        }
+                        // Skip the payload — we deliberately do NOT recurse into it.
+                        offset += (int) length;
+                        break;
+
+                    case PBWireTypes.I32:
+                        // Value is always exactly 4 bytes (fixed32, sfixed32, float).
+                        offset += 4;
+                        break;
+
+                    default:
+                        // Wire types 3 (SGROUP) and 4 (EGROUP) are deprecated and unsupported;
+                        // any other value is simply invalid.
+                        return false;
+                }
+
+                // After consuming a field the offset must never overshoot the end of the input.
+                if ( offset > input.length ) return false;
+            }
+
+            // We consumed exactly all remaining bytes — the layout is consistent.
+            return true;
+
+        } catch ( Exception ex ) {
             return false;
         }
-
-        return true;    // Success
     }
 
     /**
